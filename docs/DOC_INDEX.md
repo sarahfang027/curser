@@ -21,7 +21,7 @@ Paths below are **relative to `docs/`**. Active user docs sit at the **`docs/` r
 
 | Doc | Purpose |
 |-----|---------|
-| [static-noisy-sequence.md](static-noisy-sequence.md) | Static burst + **`static_noisy_sequence_pipeline_test.sh`** (`runs/static-noisy-test/` train/compare layout). |
+| [static-noisy-sequence.md](static-noisy-sequence.md) | Static burst + **`static_noisy_sequence_pipeline_test.sh`** (`runs/static-noisy-sequence-test/` train/compare layout). |
 | [static-noisy-singleframe-pipeline-test.md](static-noisy-singleframe-pipeline-test.md) | 1-frame smoke + **`static_noisy_singleframe_pipeline_test.sh`** (`runs/static-noisy-singleframe-test/`). |
 | [float16-pipeline-standard.md](float16-pipeline-standard.md) | Dtype policy: float16 on disk, float32 on device for U-Net and metrics. |
 

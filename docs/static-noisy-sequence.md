@@ -18,7 +18,7 @@ The clean image here is the **Gaussian GT** (a blurred stand-in for "clean", not
 2. **Run the sequence script** — it adds noise 20 times and saves the frames.
 3. **Train** with checkpoints at the **run root**; put **infer + PNG previews** under **`compare/`** (same layout as [single-frame pipeline test](static-noisy-singleframe-pipeline-test.md)).
 
-**One-shot (recommended):** `bash scripts/static_noisy_sequence_pipeline_test.sh` → `runs/static-noisy-test/` with `train/static_sequence/`, `model.pt` at run root, and `compare/denoised_infer.npy` + `*.png`.
+**One-shot (recommended):** `bash scripts/static_noisy_sequence_pipeline_test.sh` → `runs/static-noisy-sequence-test/` with `train/static_sequence/`, `model.pt` at run root, and `compare/denoised_infer.npy` + `*.png`.
 
 Legacy top-level sequence folder `runs/static_sequence/` still works; see [Run folder layout](#run-folder-layout) below.
 
@@ -30,7 +30,7 @@ Legacy top-level sequence folder `runs/static_sequence/` still works; see [Run f
 
 ### Phase 1 checklist (full plate on disk, 512 train patch)
 
-**Canonical run layout** (`runs/static-noisy-test/`):
+**Canonical run layout** (`runs/static-noisy-sequence-test/`):
 
 ```bash
 cd ~/Projects/bayer_denoiser && source .venv/bin/activate
@@ -41,24 +41,24 @@ bash scripts/static_noisy_sequence_pipeline_test.sh
 CROP_SIZE=512 EPOCHS=100 bash scripts/static_noisy_sequence_pipeline_test.sh
 ```
 
-Artifacts: **`compare/denoised_infer.npy`**, **`compare/noisy.png`**, **`compare/clean_gaussian_gt.png`**, **`compare/denoised.png`**; checkpoints at **`runs/static-noisy-test/model.pt`**.
+Artifacts: **`compare/denoised_infer.npy`**, **`compare/noisy.png`**, **`compare/clean_gaussian_gt.png`**, **`compare/denoised.png`**; checkpoints at **`runs/static-noisy-sequence-test/model.pt`**.
 
 **Manual steps** (same semantics):
 
 ```bash
-PIPELINE_RUN=runs/static-noisy-test bash scripts/make_static_noisy_sequence.sh
+PIPELINE_RUN=runs/static-noisy-sequence-test bash scripts/make_static_noisy_sequence.sh
 
 python -m bayer_denoiser.train_static_noisy_sequence \
-  --sequence-dir runs/static-noisy-test/train/static_sequence \
-  --output-dir runs/static-noisy-test \
+  --sequence-dir runs/static-noisy-sequence-test/train/static_sequence \
+  --output-dir runs/static-noisy-sequence-test \
   --crop-size 512 \
   --epochs 100 \
   --device cpu
 
 python -m bayer_denoiser.infer \
-  --checkpoint runs/static-noisy-test/model.pt \
-  --input runs/static-noisy-test/compare/infer_input_crop.npy \
-  --output runs/static-noisy-test/compare/denoised_infer.npy
+  --checkpoint runs/static-noisy-sequence-test/model.pt \
+  --input runs/static-noisy-sequence-test/compare/infer_input_crop.npy \
+  --output runs/static-noisy-sequence-test/compare/denoised_infer.npy
 ```
 
 (`static_noisy_sequence_pipeline_test.sh` writes **`compare/infer_input_crop.npy`** when `CROP_SIZE` is set.)
@@ -109,7 +109,7 @@ NOISE_STD=0.03 SEED=1 bash scripts/make_static_noisy_sequence.sh   # tweak noise
 Train-relative sequence (matches **`static_noisy_sequence_pipeline_test.sh`**):
 
 ```bash
-PIPELINE_RUN=runs/static-noisy-test bash scripts/make_static_noisy_sequence.sh
+PIPELINE_RUN=runs/static-noisy-sequence-test bash scripts/make_static_noisy_sequence.sh
 ```
 
 No clean file yet? Build it on the fly from a noisy mosaic:
@@ -137,11 +137,11 @@ python scripts/make_static_noisy_sequence.py \
 
 | Layout | Sequence path | Checkpoints | Compare |
 |--------|---------------|-------------|---------|
-| **Pipeline (canonical)** | `runs/static-noisy-test/train/static_sequence/` | `runs/static-noisy-test/model.pt` | `runs/static-noisy-test/compare/` |
+| **Pipeline (canonical)** | `runs/static-noisy-sequence-test/train/static_sequence/` | `runs/static-noisy-sequence-test/model.pt` | `runs/static-noisy-sequence-test/compare/` |
 | **Legacy** | `runs/static_sequence/` | any `--output-dir` you choose | `{checkpoint.parent}/compare/` when using `input_and_infer_crop.py` or pipeline script |
 
 ```text
-runs/static-noisy-test/
+runs/static-noisy-sequence-test/
   train/
     noisy_input_crop.npy
     gaussian_GT_crop.npy
@@ -254,15 +254,15 @@ history.json                  per-epoch avg loss and avg PSNR (packed, float32 m
 denoised_mosaic.npy           optional (--write-denoised-mosaic): debug only; pipeline moves to compare/
 ```
 
-**Run roots:** Gaussian GT → `--output-dir runs/static-noisy-singleframe-test`; static sequence pipeline → `--output-dir runs/static-noisy-test`. Sequence data lives under **`train/`** (`tile_train_seq/` or `train/static_sequence/`). Compare artifacts → **`compare/`** via `static_noisy_sequence_pipeline_test.sh` or manual `bayer_denoiser.infer` + `preview`.
+**Run roots:** Gaussian GT → `--output-dir runs/static-noisy-singleframe-test`; static sequence pipeline → `--output-dir runs/static-noisy-sequence-test`. Sequence data lives under **`train/`** (`tile_train_seq/` or `train/static_sequence/`). Compare artifacts → **`compare/`** via `static_noisy_sequence_pipeline_test.sh` or manual `bayer_denoiser.infer` + `preview`.
 
 After training it prints noisy and denoised PSNR vs clean for every frame, plus the means. Infer with the checkpoint as usual:
 
 ```bash
 python -m bayer_denoiser.infer \
-  --checkpoint runs/static-noisy-test/model.pt \
-  --input runs/static-noisy-test/train/static_sequence/frame_0000.npy \
-  --output runs/static-noisy-test/compare/denoised_infer.npy
+  --checkpoint runs/static-noisy-sequence-test/model.pt \
+  --input runs/static-noisy-sequence-test/train/static_sequence/frame_0000.npy \
+  --output runs/static-noisy-sequence-test/compare/denoised_infer.npy
 ```
 
 Caveat: all frames share one clean target, so the net can partly memorize that image; PSNR here checks the training plumbing, not generalization.
@@ -284,7 +284,7 @@ Check mosaic size: `python -c "import numpy as np; print(np.load('runs/static_se
 
 ## Try it on a frame
 
-After **`bash scripts/static_noisy_sequence_pipeline_test.sh`**, open **`runs/static-noisy-test/compare/`**. To eval a Gaussian-tile checkpoint on a legacy sequence frame:
+After **`bash scripts/static_noisy_sequence_pipeline_test.sh`**, open **`runs/static-noisy-sequence-test/compare/`**. To eval a Gaussian-tile checkpoint on a legacy sequence frame:
 
 ```bash
 python -m bayer_denoiser.infer \

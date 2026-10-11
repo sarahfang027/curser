@@ -10,7 +10,7 @@
 #   RUNS       — top-level runs dir (default: $ROOT/runs)
 #   TRAIN_DATA — training data root (default: $RUN/train); default CLEAN crop lives here
 #   CLEAN      — clean mosaic .npy (default: $TRAIN_DATA/gaussian_GT_crop.npy)
-#   PIPELINE_RUN — static-sequence run root (e.g. $RUNS/static-noisy-test); when set and OUT unset,
+#   PIPELINE_RUN — static-sequence run root (e.g. $RUNS/static-noisy-sequence-test); when set and OUT unset,
 #                  writes to $PIPELINE_RUN/train/static_sequence (train/compare layout)
 #   OUT        — sequence output dir (default: $RUNS/static_sequence, or $PIPELINE_RUN/train/static_sequence)
 

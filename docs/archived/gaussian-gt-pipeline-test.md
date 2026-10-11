@@ -30,7 +30,7 @@ Re-run the sync script after Context updates. Prefer editing files **in the repo
 
 Related: [A001C006 basic denoise test](archived/inference/a001c006-basic-denoise-test.md), [training user guide](archived/guides/training-user-guide.md).
 
-Next: [Static noisy sequence](static-noisy-sequence.md) — 20 frames of the same clean image with independent noise each. Full **train / compare** layout: `bash scripts/static_noisy_sequence_pipeline_test.sh` → `runs/static-noisy-test/`.
+Next: [Static noisy sequence](static-noisy-sequence.md) — 20 frames of the same clean image with independent noise each. Full **train / compare** layout: `bash scripts/static_noisy_sequence_pipeline_test.sh` → `runs/static-noisy-sequence-test/`.
 
 ---
 
@@ -41,7 +41,7 @@ Next: [Static noisy sequence](static-noisy-sequence.md) — 20 frames of the sam
 | **`train/`** | **Data only:** `noisy_input_crop.npy`, `gaussian_GT_crop.npy`, `gaussian_GT_full.npy`, `tile_train_seq/` |
 | **`compare/`** | `denoised_infer.npy`, `noisy.png`, `clean_gaussian_gt.png`, `denoised.png`; optional `denoised_mosaic.npy` when `DEBUG_DENOISED_MOSAIC=1` |
 
-Static **multi-frame** runs use the same pattern under **`runs/static-noisy-test/`** (`train/static_sequence/`, checkpoints at run root, `compare/`) — see [static-noisy-sequence.md](static-noisy-sequence.md). Legacy top-level **`runs/static_sequence/`** is still supported.
+Static **multi-frame** runs use the same pattern under **`runs/static-noisy-sequence-test/`** (`train/static_sequence/`, checkpoints at run root, `compare/`) — see [static-noisy-sequence.md](static-noisy-sequence.md). Legacy top-level **`runs/static_sequence/`** is still supported.
 | **RUN root** (`runs/gaussian-gt-test/`) | `model.pt`, `model_epoch*.pt`, `history.json` — sibling of `train/` and `compare/` |
 
 ```text

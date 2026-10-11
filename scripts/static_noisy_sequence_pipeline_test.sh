@@ -2,7 +2,7 @@
 # Static noisy sequence: build frames under train/, train at RUN root, infer + previews in compare/.
 # Mirrors compare/ semantics of scripts/static_noisy_singleframe_pipeline_test.sh (canonical denoised_infer.npy + PNGs).
 #
-# Layout under RUN (default: $ROOT/runs/static-noisy-test):
+# Layout under RUN (default: $ROOT/runs/static-noisy-sequence-test):
 #   train/
 #     noisy_input_crop.npy     — center crop of sample (infer input for tile mode)
 #     gaussian_GT_crop.npy     — synthetic clean (sequence source)
@@ -25,7 +25,7 @@ ROOT="${BAYER_DENOISER_ROOT:-${BAYER_RGB_ROOT:-$HOME/Projects/bayer_denoiser}}"
 SAMPLE="${1:-$ROOT/data/samples/A001C006_0101_4E4951.npy}"
 TILE="${TILE:-512}"
 SIGMA="${SIGMA:-1.0}"
-RUN="${RUN:-$ROOT/runs/static-noisy-test}"
+RUN="${RUN:-$ROOT/runs/static-noisy-sequence-test}"
 TRAIN_DIR="${TRAIN_DIR:-$RUN/train}"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-$RUN}"
 COMPARE_DIR="${COMPARE_DIR:-$RUN/compare}"

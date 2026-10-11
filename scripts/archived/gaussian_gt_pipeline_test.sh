@@ -5,7 +5,7 @@
 # Layout under RUN (default: $ROOT/runs/gaussian-gt-test):
 #   train/   — data only: noisy_input_crop.npy, gaussian_GT_*.npy, tile_train_seq/
 #   compare/ — denoised_infer.npy + preview PNGs (canonical); optional denoised_mosaic.npy when DEBUG_DENOISED_MOSAIC=1
-#   (multi-frame static sequence: scripts/static_noisy_sequence_pipeline_test.sh → runs/static-noisy-test/train/static_sequence/)
+#   (multi-frame static sequence: scripts/static_noisy_sequence_pipeline_test.sh → runs/static-noisy-sequence-test/train/static_sequence/)
 #   RUN root — model.pt, model_epoch*.pt, history.json (outside train/)
 #
 # Overrides:
