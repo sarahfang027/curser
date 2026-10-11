@@ -37,8 +37,8 @@ cd ~/Projects/bayer_denoiser && source .venv/bin/activate
 bash scripts/sync_context_to_repo.sh   # if scripts/docs lag Context
 
 bash scripts/static_noisy_sequence_pipeline_test.sh
-# full-plate sample, 512 train crop, 20 frames:
-CROP_SIZE=512 EPOCHS=100 bash scripts/static_noisy_sequence_pipeline_test.sh
+# full-plate sample, 512 train crop, 20 frames (quick test: lower EPOCHS):
+CROP_SIZE=512 EPOCHS=50 bash scripts/static_noisy_sequence_pipeline_test.sh
 ```
 
 Artifacts: **`compare/denoised_infer.npy`**, **`compare/noisy.png`**, **`compare/clean_gaussian_gt.png`**, **`compare/denoised.png`**; checkpoints at **`runs/static-noisy-test/model.pt`**.
@@ -52,7 +52,6 @@ python -m bayer_denoiser.train_static_noisy_sequence \
   --sequence-dir runs/static-noisy-test/train/static_sequence \
   --output-dir runs/static-noisy-test \
   --crop-size 512 \
-  --epochs 100 \
   --device cpu
 
 python -m bayer_denoiser.infer \
@@ -70,7 +69,6 @@ python -m bayer_denoiser.train_static_noisy_sequence \
   --sequence-dir runs/static_sequence \
   --output-dir runs/static-seq-plumbing \
   --crop-size 512 \
-  --epochs 100 \
   --device cpu
 
 python scripts/input_and_infer_crop.py \
@@ -190,7 +188,6 @@ source .venv/bin/activate
 python -m bayer_denoiser.train_static_noisy_sequence \
   --sequence-dir runs/static_sequence \
   --output-dir runs/static-seq-train \
-  --epochs 100 \
   --crop-size 512
 ```
 
@@ -200,7 +197,6 @@ On a Mac, full-frame Bayer U-Nets can exhaust RAM (`zsh: killed` on CPU) or hit 
 python -m bayer_denoiser.train_static_noisy_sequence \
   --sequence-dir runs/static_sequence \
   --output-dir runs/static-seq-train-mps \
-  --epochs 100 \
   --crop-size 512 \
   --device mps
 ```
@@ -232,7 +228,7 @@ python -m bayer_denoiser.train_static_noisy_sequence \
 |--------|---------|---------|
 | `--sequence-dir` | required | Folder with `clean_mosaic.npy` + `frame_*.npy` |
 | `--output-dir` | `runs/static-seq-train` | Where results go |
-| `--epochs` | 100 | Passes over all frames |
+| `--epochs` | 8000 | Passes over all frames |
 | `--lr` | 1e-3 | Adam learning rate |
 | `--nf` | 64 | Network width |
 | `--device` | auto | e.g. `mps`, `cpu` |

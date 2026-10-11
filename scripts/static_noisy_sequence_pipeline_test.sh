@@ -109,7 +109,7 @@ _train_argv=(
   python -m bayer_denoiser.train_static_noisy_sequence
   --sequence-dir "$SEQ_DIR"
   --output-dir "$CHECKPOINT_DIR"
-  --epochs "${EPOCHS:-100}"
+  --epochs "${EPOCHS:-8000}"
 )
 if [[ ${#_train_crop_args[@]} -gt 0 ]]; then
   _train_argv+=("${_train_crop_args[@]}")
