@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bayer_denoiser"
+version = "0.1.0"
+description = "Bayer-space denoising (packed RGGB) — train, infer, preview"
+readme = "docs/README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "torch>=2.0",
+    "torchvision>=0.15",
+    "numpy>=1.24",
+    "Pillow>=10.0",
+    "tqdm>=4.65",
+    "imageio>=2.34.0",
+]
+
+[project.optional-dependencies]
+# Legacy alias; same as default deps (imageio merged into main list).
+raw = ["imageio>=2.34.0"]
+
+[project.scripts]
+bayer-denoiser-infer = "bayer_denoiser.infer:main"
+bayer-denoiser-preview = "bayer_denoiser.preview:main"
+bayer-denoiser-train-static = "bayer_denoiser.train_static_noisy_sequence:main"
+
+[tool.setuptools]
+package-dir = { "bayer_denoiser" = "src" }
+packages = [
+    "bayer_denoiser",
+    "bayer_denoiser.archived",
+    "bayer_denoiser.archived.core",
+    "bayer_denoiser.archived.io",
+    "bayer_denoiser.archived.qa",
+]
