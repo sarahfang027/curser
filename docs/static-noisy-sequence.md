@@ -22,6 +22,16 @@ The clean image here is the **Gaussian GT** (a blurred stand-in for "clean", not
 
 Legacy top-level sequence folder `runs/static_sequence/` still works; see [Run folder layout](#run-folder-layout) below.
 
+### Training epoch defaults
+
+| Entry point | Default epochs | Role |
+|-------------|----------------|------|
+| `scripts/static_noisy_sequence_pipeline_test.sh` | **8000** (`EPOCHS` env) | Proper multi-frame static-sequence pipeline |
+| `scripts/static_noisy_singleframe_pipeline_test.sh` | **100** (`EPOCHS` env) | Quick single-frame smoke — see [single-frame pipeline test](static-noisy-singleframe-pipeline-test.md) |
+| `python -m bayer_denoiser.train_static_noisy_sequence` | **100** (`--epochs`) | Safe CLI default when you invoke train directly; pipeline scripts pass their own `--epochs` |
+
+For a fast plumbing check on the **sequence** pipeline, override: `EPOCHS=100 bash scripts/static_noisy_sequence_pipeline_test.sh`.
+
 ## Phased plan (current)
 
 **Phase 1 — plumbing (now):** fixed **center crop** on the full-plate static sequence, train with **`python -m bayer_denoiser.train_static_noisy_sequence`**, confirm loss/PSNR improve and **`bayer_denoiser.infer`** matches the checkpoint on the **same 512×512 patch**. Do **not** use `--random-crop` yet — you want many steps on one patch, not one step per patch.
@@ -37,8 +47,8 @@ cd ~/Projects/bayer_denoiser && source .venv/bin/activate
 bash scripts/sync_context_to_repo.sh   # if scripts/docs lag Context
 
 bash scripts/static_noisy_sequence_pipeline_test.sh
-# full-plate sample, 512 train crop, 20 frames (quick test: lower EPOCHS):
-CROP_SIZE=512 EPOCHS=50 bash scripts/static_noisy_sequence_pipeline_test.sh
+# default: 8000 epochs; quick plumbing check:
+CROP_SIZE=512 EPOCHS=100 bash scripts/static_noisy_sequence_pipeline_test.sh
 ```
 
 Artifacts: **`compare/denoised_infer.npy`**, **`compare/noisy.png`**, **`compare/clean_gaussian_gt.png`**, **`compare/denoised.png`**; checkpoints at **`runs/static-noisy-test/model.pt`**.
@@ -228,7 +238,7 @@ python -m bayer_denoiser.train_static_noisy_sequence \
 |--------|---------|---------|
 | `--sequence-dir` | required | Folder with `clean_mosaic.npy` + `frame_*.npy` |
 | `--output-dir` | `runs/static-seq-train` | Where results go |
-| `--epochs` | 8000 | Passes over all frames |
+| `--epochs` | 100 | Passes over all frames (sequence pipeline script passes **8000** unless you set `EPOCHS`) |
 | `--lr` | 1e-3 | Adam learning rate |
 | `--nf` | 64 | Network width |
 | `--device` | auto | e.g. `mps`, `cpu` |

@@ -129,7 +129,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--sequence-dir", type=Path, required=True, help="folder with clean_mosaic.npy + frame_*.npy")
     p.add_argument("--output-dir", type=Path, default=Path("runs/static-seq-train"))
-    p.add_argument("--epochs", type=int, default=8000)
+    p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--nf", type=int, default=64)
     p.add_argument("--device", default=None)
