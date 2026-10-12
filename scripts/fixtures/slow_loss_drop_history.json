@@ -1,0 +1,22 @@
+[
+  {"epoch": 1, "loss": 0.05, "psnr": 28.1},
+  {"epoch": 2, "loss": 0.0499, "psnr": 28.12},
+  {"epoch": 3, "loss": 0.04985, "psnr": 28.14},
+  {"epoch": 4, "loss": 0.0498, "psnr": 28.15},
+  {"epoch": 5, "loss": 0.04975, "psnr": 28.16},
+  {"epoch": 6, "loss": 0.0497, "psnr": 28.17},
+  {"epoch": 7, "loss": 0.04965, "psnr": 28.18},
+  {"epoch": 8, "loss": 0.0496, "psnr": 28.19},
+  {"epoch": 9, "loss": 0.04955, "psnr": 28.2},
+  {"epoch": 10, "loss": 0.0495, "psnr": 28.21},
+  {"epoch": 11, "loss": 0.04945, "psnr": 28.22},
+  {"epoch": 12, "loss": 0.0494, "psnr": 28.23},
+  {"epoch": 13, "loss": 0.04935, "psnr": 28.24},
+  {"epoch": 14, "loss": 0.0493, "psnr": 28.25},
+  {"epoch": 15, "loss": 0.04925, "psnr": 28.26},
+  {"epoch": 16, "loss": 0.0492, "psnr": 28.27},
+  {"epoch": 17, "loss": 0.04915, "psnr": 28.28},
+  {"epoch": 18, "loss": 0.0491, "psnr": 28.29},
+  {"epoch": 19, "loss": 0.04905, "psnr": 28.3},
+  {"epoch": 20, "loss": 0.048, "psnr": 28.35}
+]
