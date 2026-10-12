@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Plot avg training loss and PSNR from history.json (train_static_noisy_sequence)."""
+"""Plot avg training loss and PSNR from history.json (train_static_noisy_sequence).
+
+Y-axis limits are padded tightly around each series (not matplotlib auto margins) so
+small epoch-to-epoch changes remain visible; tick labels use extra precision on loss.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +14,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import FormatStrFormatter
 
 
 def _metric(row: dict, primary: str, alias: str) -> float:
@@ -40,6 +45,23 @@ def load_series(history_path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]
     )
 
 
+def _padded_ylim(
+    values: np.ndarray,
+    *,
+    frac: float = 0.05,
+    min_pad: float = 0.0,
+) -> tuple[float, float]:
+    """Min/max of ``values`` expanded by ``frac`` of the span (at least ``min_pad``)."""
+    lo = float(np.min(values))
+    hi = float(np.max(values))
+    if lo == hi:
+        pad = max(min_pad, abs(lo) * frac if lo != 0 else min_pad or 1.0)
+        return lo - pad, hi + pad
+    span = hi - lo
+    pad = max(min_pad, span * frac)
+    return lo - pad, hi + pad
+
+
 def plot_training_curves(
     epochs: np.ndarray,
     losses: np.ndarray,
@@ -53,10 +75,14 @@ def plot_training_curves(
 
     ax_loss.plot(epochs, losses, color="#c44e52", linewidth=1.2)
     ax_loss.set_ylabel("avg loss (L1)")
+    ax_loss.set_ylim(_padded_ylim(losses, frac=0.05, min_pad=max(1e-6, float(np.max(losses)) * 1e-4)))
+    ax_loss.yaxis.set_major_formatter(FormatStrFormatter("%.5f"))
     ax_loss.grid(True, alpha=0.3)
 
     ax_psnr.plot(epochs, psnrs, color="#4c72b0", linewidth=1.2)
     ax_psnr.set_ylabel("avg PSNR (dB)")
+    ax_psnr.set_ylim(_padded_ylim(psnrs, frac=0.05, min_pad=0.1))
+    ax_psnr.yaxis.set_major_formatter(FormatStrFormatter("%.2f"))
     ax_psnr.set_xlabel("epoch")
     ax_psnr.grid(True, alpha=0.3)
 
