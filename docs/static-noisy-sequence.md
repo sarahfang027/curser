@@ -10,7 +10,16 @@ Use it to:
 - Later try temporal ideas (frame averaging should cancel noise).
 - Stay simple: no motion, no alignment.
 
-**Default run directory:** `runs/static-noisy-sequence-test/` — one-shot via `bash scripts/static_noisy_sequence_pipeline_test.sh`.
+**Default run directory:** `runs/static-noisy-sequence-test/` — Gaussian synthetic path via `bash scripts/static_noisy_sequence_pipeline_test.sh`.
+
+**Two ways to feed training:**
+
+| Mode | On-disk input | Pipeline |
+|------|----------------|----------|
+| **Gaussian synthetic** | One sample plate `.npy`; script builds Gaussian GT + `train/static_sequence/` | Default (no `DATA_ROOT`) |
+| **Paired plates (Setup A)** | `DATA_ROOT/GT/` (one clean) + `DATA_ROOT/input/` (noisy frames) | Set **`DATA_ROOT=...`** — no `train/static_sequence/` |
+
+Paired synthetic testing: [testing-synthetic-data.md](testing-synthetic-data.md).
 
 ## Training epoch defaults
 
@@ -38,31 +47,32 @@ Writes `train/static_sequence/` with `clean_mosaic.npy`, `frame_0000.npy` … `f
 
 ### 2. Pipeline (smoke → multi-crop goal)
 
-One script builds data (if needed), trains, full-plate infer, and writes `compare/`. **Goal:** multi-crop on the **full-sample** static sequence — several **512×512** train windows on the plate (`train/crops/` + `manifest.json`), then **8000** epochs and full-plate denoised output. Details: [Training progression](#training-progression-smoke--multi-crop).
+One script trains, runs **full-plate tiled infer** (`FULL_INFER=1` default), and writes outputs under **`RUN`**.
 
-**Input plate:** default `data/samples/A001C006_0101_4E4951.npy` under the repo root. The script loads that full Bayer mosaic `.npy`, builds Gaussian GT + `train/static_sequence/`, trains on the frames, and runs full-plate infer on the same file. Use another plate as the **first argument**:
+**Gaussian path** — default sample plate `data/samples/A001C006_0101_4E4951.npy` (or pass another mosaic as the first argument). Builds Gaussian GT + `train/static_sequence/`, then trains. **Goal on this path:** multi-crop on the full sample (`train/crops/` + `manifest.json`), then **8000** epochs. Details: [Training progression](#training-progression-smoke--multi-crop).
 
 ```bash
+bash scripts/static_noisy_sequence_pipeline_test.sh
 bash scripts/static_noisy_sequence_pipeline_test.sh /path/to/your_mosaic.npy
 ```
 
-Env vars (`NUM_CROPS`, `EPOCHS`, …) work the same; put them before `bash` if you combine them.
+**Paired path (`DATA_ROOT`)** — reads **`GT/`** + **`input/`** at the dataset root; **`RUN`** is only checkpoints and QA (no manual `static_sequence/` folder). See [Setup A](#real-paired-plates-setup-a).
 
-**Smoke** (fast `EPOCHS=100`, noisy/GT crop PNGs in `train/` via auto `SMOKE_CROP_PNG=1`):
+Env vars (`NUM_CROPS`, `EPOCHS`, `DATA_ROOT`, `RUN`, …) go **before** `bash`.
+
+**Smoke** (`EPOCHS=100`, auto **`SMOKE_CROP_PNG=1`** when `NUM_CROPS=1`):
 
 ```bash
-# Center 512×512 window (default smoke)
+# Gaussian — center 512×512 crop
 CROP_SIZE=512 EPOCHS=100 bash scripts/static_noisy_sequence_pipeline_test.sh
 
-# Fixed window on full plate — even top-left (y, x); NUM_CROPS=1; do not set CROP_GRID
-CROP_Y=4000 CROP_X=6000 TILE=512 EPOCHS=100 NUM_CROPS=1 SMOKE_CROP_PNG=1 \
-  bash scripts/static_noisy_sequence_pipeline_test.sh
-
-# Paired synthetic on disk (one clean in GT/, noisy frames in input/) — no static_sequence/ copy step
+# Paired — e.g. data/sythatic_sequence/{GT,input}
 DATA_ROOT=data/sythatic_sequence RUN=runs/synthetic-sequence \
-  CROP_SIZE=512 CROP_Y=4000 CROP_X=6000 EPOCHS=100 NUM_CROPS=1 SMOKE_CROP_PNG=1 \
+  CROP_SIZE=512 CROP_Y=4000 CROP_X=6000 EPOCHS=100 NUM_CROPS=1 \
   bash scripts/static_noisy_sequence_pipeline_test.sh
 ```
+
+Use even **`CROP_Y` / `CROP_X`** inside your plate H×W, or omit them for a center crop.
 
 | Stage | Command |
 |-------|---------|
@@ -76,12 +86,12 @@ With no env vars, defaults are **8000** epochs, **`NUM_CROPS=1`** (center crop o
 | File | Role |
 |------|------|
 | `denoised_infer.npy` | Full-plate denoised mosaic |
-| `denoised.png` | Preview of the full result |
-| `denoised_patch.png` (smoke) or `denoised_infer_patch.npy` + `denoised_patch.png` | **512×512** patch QA at the training window (center, or `CROP_Y`/`CROP_X`) |
-| `train/noisy_input_crop.png`, `train/gaussian_GT_crop.png` | Smoke (`EPOCHS=100`, `NUM_CROPS=1`): auto `SMOKE_CROP_PNG=1` (replaces crop `.npy`); center, **`CROP_Y`/`CROP_X`**, or `CROP_GRID=1x1` |
-| `infer_input_crop.png`, `denoised_infer_patch.png`, … | Smoke patch QA under **`compare/`** |
-| `noisy.png`, `clean_gaussian_gt.png` | Previews |
-| `training_curves.png` | When `PLOT_HISTORY=1` (default) |
+| `noisy.png` | Full-frame **input** preview (same plate as tiled infer) |
+| `denoised.png` | Full-frame **denoised** preview |
+
+**Smoke train crops** (`EPOCHS=100`, `NUM_CROPS=1`, auto `SMOKE_CROP_PNG=1`): `train/noisy_input_crop.png`, `train/gaussian_GT_crop.png` (training window; not under `compare/`).
+
+**Run root:** `training_curves.png` when `PLOT_HISTORY=1` (default).
 
 Checkpoint: `model.pt` at run root. Faster smoke infer: `FULL_INFER=0` ([step 3](#3-patch-only-infer)).
 
@@ -142,8 +152,8 @@ Tiling **auto-enables** when input mosaic H×W exceeds `--tile-size` (even witho
 ### 4. Success criteria
 
 - Training **PSNR** clearly above noisy PSNR on the train patch.
-- Patch infer matches training forward: **`compare/denoised_infer_patch.png`** on smoke (`SMOKE_CROP_PNG=1`), else **`compare/denoised_infer_patch.npy`** (or patch-sized `denoised_infer.npy` when `FULL_INFER=0`).
-- After step 2, open **`runs/static-noisy-sequence-test/compare/`** for PNGs and curves.
+- Smoke: **`train/noisy_input_crop.png`** and **`train/gaussian_GT_crop.png`** match the training window; **`compare/noisy.png`** and **`compare/denoised.png`** are full-frame QA.
+- After step 2, open **`compare/`** for the two full-frame PNGs (+ `denoised_infer.npy`); **`training_curves.png`** at run root when plotted.
 
 Optional debug: `--write-denoised-mosaic` or pipeline **`DEBUG_DENOISED_MOSAIC=1`** → `compare/denoised_mosaic.npy` (not canonical).
 
@@ -151,75 +161,42 @@ High PSNR vs Gaussian GT validates **pipeline wiring**, not real-world denoising
 
 ## Real paired plates (Setup A)
 
-Use this when you already have **aligned** noisy and clean Bayer mosaics (float16 H×W `.npy`, same shape, RGGB packing per [float16 pipeline](float16-pipeline-standard.md)). Point the pipeline at a dataset root with **`GT/`** and **`input/`**, or call the trainer with **`--data-root`** (see [testing synthetic data](testing-synthetic-data.md#b--paired-synthetic-clean--noisy-you-generated)).
+**Aligned** noisy + clean Bayer mosaics (float16 H×W `.npy`, same shape, [float16 pipeline](float16-pipeline-standard.md)). **Do not** run `make_static_noisy_sequence.py` on real clean plates (it adds synthetic noise).
 
-**Not covered here:** `.sky` ingest (see [sky-format-conversion.md](sky-format-conversion.md)); the synthetic pipeline (`static_noisy_sequence_pipeline_test.sh`), which builds Gaussian GT from a single plate.
-
-Example run root: `runs/my-real-paired/`.
-
-### 1. On-disk layout (full plates)
-
-**Preferred:** dataset root with paired folders (no manual `static_sequence/` copy):
+**Dataset layout** (prep once under repo `data/` or anywhere):
 
 ```text
 data/my_clip/
-  GT/          # one clean .npy (or clean_mosaic.npy); shared by all frames
-  input/       # every noisy frame .npy (sorted lexicographically)
+  GT/          # one clean .npy (prefers clean_mosaic.npy if present)
+  input/       # all noisy frames (*.npy, sorted)
 ```
 
-Smoke:
+**Pipeline** (recommended) — same script as Gaussian path, with **`DATA_ROOT`**:
 
 ```bash
 DATA_ROOT=data/my_clip RUN=runs/my-real-paired \
-  CROP_SIZE=512 CROP_Y=4000 CROP_X=6000 EPOCHS=100 \
+  CROP_SIZE=512 EPOCHS=100 \
   bash scripts/static_noisy_sequence_pipeline_test.sh
 ```
 
-**Alternate:** legacy folder from `make_static_noisy_sequence.py` or a manual copy:
-
-```text
-runs/my-real-paired/train/static_sequence/
-  clean_mosaic.npy
-  frame_0000.npy
-```
-
-Do **not** use `make_static_noisy_sequence.py` on real clean plates (it adds synthetic noise). One noisy frame is enough; use **`--frames 1`** when training if you only have one file under `input/`.
-
-Keep **full H×W** mosaics (same shape for clean and every noisy frame). You do **not** need `train/crops/*.npy` on disk unless you pre-built a manifest.
-
-### 2. Train (multi-crop at train time)
-
-Each step crops a **512×512** window from the loaded full mosaics (noisy frame + clean). Pick windows like the synthetic pipeline: **`--num-crops`** + **`--crop-grid`** (or random placement with **`--num-crops`** + **`--crop-placement-seed`**). See [Training progression](#training-progression-smoke--multi-crop) for 3×3 proof vs 4×4 long run.
+**Trainer only** (no infer/plots):
 
 ```bash
-# Multi-crop proof (3×3)
 python -m bayer_denoiser.train_static_noisy_sequence \
-  --sequence-dir runs/my-real-paired/train/static_sequence \
+  --data-root data/my_clip \
   --output-dir runs/my-real-paired \
   --crop-size 512 \
   --num-crops 9 \
   --crop-grid 3x3 \
   --epochs 100 \
   --device mps
-
-# Long run (4×4)
-python -m bayer_denoiser.train_static_noisy_sequence \
-  --sequence-dir runs/my-real-paired/train/static_sequence \
-  --output-dir runs/my-real-paired \
-  --crop-size 512 \
-  --num-crops 16 \
-  --crop-grid 4x4 \
-  --epochs 8000 \
-  --device mps
 ```
 
-`--num-crops` must match the grid when `--crop-grid` is set (`3x3→9`, `4x4→16`). Checkpoints and `history.json` at **run root** — same layout as [Run folder layout](#run-folder-layout).
+Multi-crop rules match [Training progression](#training-progression-smoke--multi-crop). **`--num-crops`** must match **`--crop-grid`** (`3x3→9`, `4x4→16`).
 
-Optional: pre-built `train/crops/manifest.json` from `generate_training_crop_pairs.py` (still crops from full mosaics at train time; disk tiles are not required for training).
+**Legacy:** `train/static_sequence/` with `clean_mosaic.npy` + `frame_*.npy` still works via **`--sequence-dir`** (manual assemble or old runs).
 
-### 3. Infer and previews
-
-No pipeline wrapper — run infer on your noisy plate (tiled if full resolution):
+**Infer without pipeline:** tiled infer + the two compare PNGs (input + denoised):
 
 ```bash
 mkdir -p runs/my-real-paired/compare
@@ -228,13 +205,13 @@ python -m bayer_denoiser.infer \
   --input /path/to/noisy_full.npy \
   --output runs/my-real-paired/compare/denoised_infer.npy \
   --tiled --tile-size 512 --overlap 64
-
-python -m bayer_denoiser.preview \
-  runs/my-real-paired/compare/denoised_infer.npy \
+python -m bayer_denoiser.preview /path/to/noisy_full.npy \
+  --write-mosaic runs/my-real-paired/compare/noisy.png
+python -m bayer_denoiser.preview runs/my-real-paired/compare/denoised_infer.npy \
   --write-mosaic runs/my-real-paired/compare/denoised.png
 ```
 
-PSNR vs real clean is meaningful here; vs Gaussian GT it was only a plumbing check.
+PSNR vs real clean is meaningful on this path.
 
 ## Training progression (smoke → multi-crop)
 
@@ -285,11 +262,12 @@ On a **~17712×18400** plate, one **512×512** tile is a tiny fraction of pixels
 cd ~/Projects/bayer_denoiser
 source .venv/bin/activate
 
-# Smoke (sequence) — center crop, fast epochs
+# Smoke (Gaussian) — center crop
 CROP_SIZE=512 EPOCHS=100 bash scripts/static_noisy_sequence_pipeline_test.sh
 
-# Smoke — fixed window on full plate (example coordinates)
-CROP_Y=4000 CROP_X=6000 TILE=512 EPOCHS=100 NUM_CROPS=1 SMOKE_CROP_PNG=1 \
+# Smoke (paired DATA_ROOT) — off-center example
+DATA_ROOT=data/sythatic_sequence RUN=runs/synthetic-sequence \
+  CROP_SIZE=512 CROP_Y=4000 CROP_X=6000 EPOCHS=100 NUM_CROPS=1 \
   bash scripts/static_noisy_sequence_pipeline_test.sh
 
 # Step A — first multi-crop proof (short)
@@ -313,35 +291,26 @@ NUM_CROPS=16 CROP_GRID=4x4 TILE=512 bash scripts/static_noisy_sequence_pipeline_
 
 ## Run folder layout
 
+**Gaussian path** (`runs/static-noisy-sequence-test/`):
+
 ```text
-runs/static-noisy-sequence-test/
+runs/<RUN>/
+  model.pt, model_epoch*.pt, history.json
+  training_curves.png             # PLOT_HISTORY=1 (run root, not compare/)
   train/
-    noisy_input_crop.png          # smoke QA only (SMOKE_CROP_PNG=1); no gaussian_GT_crop.npy
-    gaussian_GT_crop.png
-    gaussian_GT_full.npy          # not kept (clean lives in static_sequence/clean_mosaic.npy)
-    crops/
-      manifest.json
-      noisy_000.npy … noisy_NNN.npy
-      gaussian_GT_000.npy … gaussian_GT_NNN.npy
-    static_sequence/
-      clean_mosaic.npy
-      frame_0000.npy … frame_0019.npy
-      manifest.json
+    static_sequence/              # clean_mosaic.npy + frame_*.npy
+    crops/                        # multi-crop only: manifest.json + noisy_*/gaussian_GT_*
+    noisy_input_crop.png          # smoke (SMOKE_CROP_PNG=1)
+    gaussian_GT_crop.png          # smoke; name kept for Gaussian path
   compare/
-    infer_input_crop.npy          # when CROP_SIZE set
-    denoised_infer.npy            # canonical (bayer_denoiser.infer)
-    denoised_infer_patch.npy      # patch QA (default full infer)
-    denoised_patch.png
-    noisy.png
-    clean_gaussian_gt.png
-    denoised.png
-    training_curves.png           # PLOT_HISTORY=1
-  model.pt
-  model_epoch0100.pt
-  history.json
+    denoised_infer.npy
+    noisy.png                     # full-frame input preview
+    denoised.png                  # full-frame denoised preview
 ```
 
-Same run-root pattern as [single-frame pipeline test](static-noisy-singleframe-pipeline-test.md).
+**Paired path (`DATA_ROOT`)** — same run layout except **no** `train/static_sequence/`; data stays under **`DATA_ROOT/GT`** and **`DATA_ROOT/input`**. Smoke crop PNGs still under **`train/`** (real clean + noisy at the training window).
+
+Same checkpoint / compare PNG convention as [single-frame pipeline test](static-noisy-singleframe-pipeline-test.md).
 
 ## Reference
 
@@ -360,18 +329,9 @@ Same run-root pattern as [single-frame pipeline test](static-noisy-singleframe-p
 
 `bash scripts/make_static_noisy_sequence.sh` without `PIPELINE_RUN` still defaults to legacy **`runs/static_sequence/`** — prefer `PIPELINE_RUN=runs/static-noisy-sequence-test` or the pipeline script.
 
-### Patch infer and verify
+### Patch-only infer (`FULL_INFER=0`)
 
-When the pipeline already ran, skip this. Default output is a **512×512** patch — `compare/denoised_infer.npy` should match the training forward on the same patch.
-
-```bash
-python -m bayer_denoiser.infer \
-  --checkpoint runs/static-noisy-sequence-test/model.pt \
-  --input runs/static-noisy-sequence-test/compare/infer_input_crop.npy \
-  --output runs/static-noisy-sequence-test/compare/denoised_infer.npy
-```
-
-(`--input` can be `train/static_sequence/frame_0000.npy` instead.) Shared clean target → PSNR checks **plumbing**, not generalization.
+Default pipeline uses **full-plate** tiled infer. With **`FULL_INFER=0`**, `denoised_infer.npy` and **`denoised.png`** are **patch-sized** (training window); **`noisy.png`** matches that patch.
 
 ### Training curves
 
@@ -380,10 +340,10 @@ python -m bayer_denoiser.infer \
 ```bash
 python -m bayer_denoiser.plot_training_history \
   --history runs/static-noisy-sequence-test/history.json \
-  --output runs/static-noisy-sequence-test/compare/training_curves.png
+  --output runs/static-noisy-sequence-test/training_curves.png
 ```
 
-The pipeline runs this when **`PLOT_HISTORY=1`** (default; `0` to skip). Optional **`--title`**.
+The pipeline writes **`$RUN/training_curves.png`** when **`PLOT_HISTORY=1`** (default; `0` to skip). Optional **`--title`**.
 
 ### `train_static_noisy_sequence` CLI options
 
@@ -399,7 +359,7 @@ The pipeline runs this when **`PLOT_HISTORY=1`** (default; `0` to skip). Optiona
 | `--device` | auto | e.g. `mps`, `cpu` |
 | `--frames` | all | First N frames only (sorted) |
 | `--seed`, `--no-shuffle` | 0 / off | Frame order |
-| `--crop-size`, `--crop-y`, `--crop-x` | off | Even square crop (center if origin omitted). Origins must lie inside **loaded** `clean_mosaic.npy` H×W (full plate for plate coordinates; smoke runs use ~512×512 tiles — use center crop or rebuild sequence from full-frame GT). Trainer errors if origin+crop exceeds mosaic bounds. |
+| `--crop-size`, `--crop-y`, `--crop-x` | off | Even square crop (center if origin omitted). Origins must lie inside loaded mosaic H×W (`--data-root` or `--sequence-dir`). Trainer errors if origin+crop exceeds bounds. |
 | `--num-crops`, `--crop-grid` | off | Multi-crop windows on **full** mosaics (train-time crop; like pipeline `NUM_CROPS` / `CROP_GRID`) |
 | `--crop-placement-seed` | 42 | Random window layout when `--crop-grid` omitted |
 | `--crops-manifest` | auto | `train/crops/manifest.json` when present (do not combine with `--num-crops` / `--crop-grid`) |
