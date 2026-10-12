@@ -6,7 +6,7 @@
 #   train/
 #     noisy_input_crop.png / gaussian_GT_crop.png — smoke crops (SMOKE_CROP_PNG=1)
 #     static_sequence/         — Gaussian path only: clean_mosaic.npy + frame_*.npy (not used with DATA_ROOT)
-#   compare/                   — denoised_infer.npy, noisy.png, clean_gaussian_gt.png, denoised.png
+#   compare/                   — denoised_infer.npy; PNGs: noisy.png (full input), denoised.png (full infer)
 #   RUN root                   — model.pt, model_epoch*.pt, history.json
 #
 # Overrides:
@@ -23,11 +23,11 @@
 #   SKIP_BUILD_GT=1 — require existing train/static_sequence/ (or prior build artifacts)
 #   SKIP_SEQUENCE=1   — require existing train/static_sequence/
 #   DEBUG_DENOISED_MOSAIC=1 — training-forward denoised_mosaic.npy → compare/
-#   PLOT_HISTORY=1 (default) — after train, write compare/training_curves.png from history.json
+#   PLOT_HISTORY=1 (default) — after train, write RUN/training_curves.png from history.json
 #   FULL_INFER=1 (default) — tiled infer on full SAMPLE; FULL_INFER=0 — patch-only infer
 #   INFER_TILED=1 — same as full-plate tiled infer (alias)
 #   INFER_TILE_SIZE (default CROP_SIZE or TILE); INFER_OVERLAP optional
-#   SMOKE_CROP_PNG — when 1, write crop QA as compare/*.png and drop crop .npy
+#   SMOKE_CROP_PNG — when 1, write crop QA PNGs under train/ (not compare/)
 #     (auto 1 for EPOCHS=100 + NUM_CROPS=1 + center, CROP_GRID=1x1, or CROP_Y/CROP_X)
 
 set -euo pipefail
@@ -326,7 +326,7 @@ if [[ "${PLOT_HISTORY:-1}" == "1" && -f "$CHECKPOINT_DIR/history.json" ]]; then
   echo "== training curves from history.json =="
   python -m bayer_denoiser.plot_training_history \
     --history "$CHECKPOINT_DIR/history.json" \
-    --output "$COMPARE_DIR/training_curves.png"
+    --output "$CHECKPOINT_DIR/training_curves.png"
 fi
 
 # Infer input: tile-sized sequence → frame_0000; cropped training → center crop of frame_0000 (matches train patch).
@@ -419,12 +419,6 @@ PY
     --input "$_infer_input" \
     --output "$COMPARE_DIR/denoised_infer.npy" \
     "${_infer_extra[@]}"
-  python -m bayer_denoiser.infer \
-    --checkpoint "$CHECKPOINT_DIR/model.pt" \
-    --input "$COMPARE_DIR/infer_input_crop.npy" \
-    --output "$COMPARE_DIR/denoised_infer_patch.npy"
-  python -m bayer_denoiser.preview "$COMPARE_DIR/denoised_infer_patch.npy" \
-    --write-mosaic "$COMPARE_DIR/denoised_patch.png"
 else
   echo "== official infer (should match training forward on same patch) =="
   python -m bayer_denoiser.infer \
@@ -433,33 +427,13 @@ else
     --output "$COMPARE_DIR/denoised_infer.npy"
 fi
 
-_clean_preview="${_seq_clean:-$SEQ_DIR/clean_mosaic.npy}"
-if [[ "$CROP_SIZE" != "0" ]]; then
-  _clean_crop="$COMPARE_DIR/clean_mosaic_crop.npy"
-  python - <<PY
-import numpy as np
-from pathlib import Path
-clean = np.load("$_clean_preview")
-h, w = clean.shape
-cs = int("$CROP_SIZE")
-ty, tx = "$TRAIN_CROP_Y", "$TRAIN_CROP_X"
-if ty and tx:
-    top, left = int(ty), int(tx)
-else:
-    top = (h - cs) // 2
-    top -= top % 2
-    left = (w - cs) // 2
-    left -= left % 2
-crop = clean[top : top + cs, left : left + cs].astype(np.float16)
-np.save("$_clean_crop", crop)
-PY
-  _clean_preview="$_clean_crop"
+_full_noisy_preview="$SAMPLE"
+if [[ "${FULL_INFER:-1}" != "1" && "${INFER_TILED:-0}" != "1" ]]; then
+  _full_noisy_preview="$_noisy_preview"
 fi
 
-python -m bayer_denoiser.preview "$_noisy_preview" \
+python -m bayer_denoiser.preview "$_full_noisy_preview" \
   --write-mosaic "$COMPARE_DIR/noisy.png"
-python -m bayer_denoiser.preview "$_clean_preview" \
-  --write-mosaic "$COMPARE_DIR/clean_gaussian_gt.png"
 python -m bayer_denoiser.preview "$COMPARE_DIR/denoised_infer.npy" \
   --write-mosaic "$COMPARE_DIR/denoised.png"
 
@@ -477,10 +451,18 @@ if [[ "$SMOKE_CROP_PNG" == "1" ]]; then
     _smoke_crop_to_png "$NOISY_CROP" "$TRAIN_DIR/noisy_input_crop.png"
     _smoke_crop_to_png "$CLEAN_GT" "$TRAIN_DIR/gaussian_GT_crop.png"
   fi
-  _smoke_crop_to_png "$COMPARE_DIR/infer_input_crop.npy" "$COMPARE_DIR/infer_input_crop.png"
-  _smoke_crop_to_png "$COMPARE_DIR/clean_mosaic_crop.npy" "$COMPARE_DIR/clean_mosaic_crop.png"
-  _smoke_crop_to_png "$COMPARE_DIR/denoised_infer_patch.npy" "$COMPARE_DIR/denoised_infer_patch.png"
 fi
+
+rm -f \
+  "$COMPARE_DIR/clean_gaussian_gt.png" \
+  "$COMPARE_DIR/denoised_patch.png" \
+  "$COMPARE_DIR/infer_input_crop.png" \
+  "$COMPARE_DIR/clean_mosaic_crop.png" \
+  "$COMPARE_DIR/denoised_infer_patch.png" \
+  "$COMPARE_DIR/training_curves.png" \
+  "$COMPARE_DIR/infer_input_crop.npy" \
+  "$COMPARE_DIR/denoised_infer_patch.npy" \
+  "$COMPARE_DIR/clean_mosaic_crop.npy"
 
 # Redundant after static_sequence/ exists (trainer reads sequence only)
 rm -f \
