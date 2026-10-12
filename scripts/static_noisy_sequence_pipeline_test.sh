@@ -5,7 +5,7 @@
 # Layout under RUN (default: $ROOT/runs/static-noisy-sequence-test):
 #   train/
 #     noisy_input_crop.png / gaussian_GT_crop.png — smoke crops (SMOKE_CROP_PNG=1)
-#     static_sequence/         — clean_mosaic.npy + frame_*.npy
+#     static_sequence/         — Gaussian path only: clean_mosaic.npy + frame_*.npy (not used with DATA_ROOT)
 #   compare/                   — denoised_infer.npy, noisy.png, clean_gaussian_gt.png, denoised.png
 #   RUN root                   — model.pt, model_epoch*.pt, history.json
 #
@@ -47,6 +47,14 @@ SAMPLE="${1:-$ROOT/data/samples/A001C006_0101_4E4951.npy}"
 TILE="${TILE:-512}"
 SIGMA="${SIGMA:-1.0}"
 RUN="${RUN:-$ROOT/runs/static-noisy-sequence-test}"
+_run_abs="$RUN"
+if [[ "$RUN" != /* ]]; then
+  _run_abs="$ROOT/$RUN"
+fi
+# Paired layout under RUN (RUN/GT + RUN/input) — same as DATA_ROOT without setting env
+if [[ -z "${DATA_ROOT:-}" && -d "$_run_abs/GT" && -d "$_run_abs/input" ]]; then
+  DATA_ROOT="$RUN"
+fi
 TRAIN_DIR="${TRAIN_DIR:-$RUN/train}"
 CHECKPOINT_DIR="${CHECKPOINT_DIR:-$RUN}"
 COMPARE_DIR="${COMPARE_DIR:-$RUN/compare}"
@@ -87,6 +95,39 @@ if [[ -z "${SMOKE_CROP_PNG:-}" ]]; then
 fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+_resolve_gt_clean() {
+  local gt_dir="$1"
+  if [[ -f "$gt_dir/clean_mosaic.npy" ]]; then
+    echo "$gt_dir/clean_mosaic.npy"
+    return 0
+  fi
+  ls "$gt_dir"/*.npy 2>/dev/null | sort | head -1 || true
+}
+
+_write_data_root_smoke_crop_npys() {
+  local noisy_frame="$1" clean_plate="$2" out_noisy="$3" out_clean="$4"
+  python - <<PY
+import numpy as np
+frame = np.load("$noisy_frame")
+clean = np.load("$clean_plate")
+h, w = frame.shape
+cs = int("$CROP_SIZE")
+ty, tx = "$TRAIN_CROP_Y", "$TRAIN_CROP_X"
+if ty and tx:
+    top, left = int(ty), int(tx)
+else:
+    top = (h - cs) // 2
+    top -= top % 2
+    left = (w - cs) // 2
+    left -= left % 2
+noisy = frame[top : top + cs, left : left + cs].astype(np.float16)
+gt = clean[top : top + cs, left : left + cs].astype(np.float16)
+np.save("$out_noisy", noisy)
+np.save("$out_clean", gt)
+print("train smoke crops", noisy.shape, "at", top, left)
+PY
+}
+
 cd "$ROOT"
 if [[ -f .venv/bin/activate ]]; then
   source .venv/bin/activate
@@ -121,7 +162,11 @@ if [[ -n "$DATA_ROOT" ]]; then
   SKIP_SEQUENCE="${SKIP_SEQUENCE:-1}"
 fi
 
-mkdir -p "$TRAIN_DIR" "$COMPARE_DIR" "$CHECKPOINT_DIR" "$SEQ_DIR"
+if [[ "$_use_data_root" == "1" ]]; then
+  mkdir -p "$TRAIN_DIR" "$COMPARE_DIR" "$CHECKPOINT_DIR"
+else
+  mkdir -p "$TRAIN_DIR" "$COMPARE_DIR" "$CHECKPOINT_DIR" "$SEQ_DIR"
+fi
 
 CLEAN_GT="$TRAIN_DIR/gaussian_GT_crop.npy"
 NOISY_CROP="$TRAIN_DIR/noisy_input_crop.npy"
@@ -212,12 +257,18 @@ PY
     _SEQ_CLEAN="$CLEAN_GT"
   fi
 else
-  if [[ -f "$SEQ_DIR/clean_mosaic.npy" ]]; then
+  if [[ "$_use_data_root" == "1" ]]; then
+    _SEQ_CLEAN="$(_resolve_gt_clean "$GT_DIR")"
+    if [[ -z "$_SEQ_CLEAN" || ! -f "$_SEQ_CLEAN" ]]; then
+      echo "missing clean .npy under $GT_DIR (DATA_ROOT paired layout)" >&2
+      exit 1
+    fi
+  elif [[ -f "$SEQ_DIR/clean_mosaic.npy" ]]; then
     _SEQ_CLEAN="$SEQ_DIR/clean_mosaic.npy"
   elif [[ -f "$CLEAN_GT" ]]; then
     _SEQ_CLEAN="$CLEAN_GT"
   else
-    echo "missing train data (SKIP_BUILD_GT=1): need $SEQ_DIR/clean_mosaic.npy" >&2
+    echo "missing train data (SKIP_BUILD_GT=1): need $SEQ_DIR/clean_mosaic.npy or set DATA_ROOT=.../GT+input/" >&2
     exit 1
   fi
 fi
@@ -414,7 +465,11 @@ python -m bayer_denoiser.preview "$COMPARE_DIR/denoised_infer.npy" \
 
 if [[ "$SMOKE_CROP_PNG" == "1" ]]; then
   echo "== smoke crop previews (PNG, drop crop .npy) =="
-  if [[ -f "$TRAIN_DIR/crops/noisy_000.npy" ]]; then
+  if [[ "$_use_data_root" == "1" ]]; then
+    _write_data_root_smoke_crop_npys "$_frame0" "$_seq_clean" "$NOISY_CROP" "$CLEAN_GT"
+    _smoke_crop_to_png "$NOISY_CROP" "$TRAIN_DIR/noisy_input_crop.png"
+    _smoke_crop_to_png "$CLEAN_GT" "$TRAIN_DIR/gaussian_GT_crop.png"
+  elif [[ -f "$TRAIN_DIR/crops/noisy_000.npy" ]]; then
     _smoke_crop_to_png "$TRAIN_DIR/crops/noisy_000.npy" "$TRAIN_DIR/noisy_input_crop.png"
     _smoke_crop_to_png "$TRAIN_DIR/crops/gaussian_GT_000.npy" "$TRAIN_DIR/gaussian_GT_crop.png"
     rm -f "$TRAIN_DIR/crops/noisy_000.npy" "$TRAIN_DIR/crops/gaussian_GT_000.npy"
@@ -433,4 +488,12 @@ rm -f \
   "$TRAIN_DIR/noisy_input_crop.npy" \
   "$TRAIN_DIR/gaussian_GT_full.npy"
 
-echo "Done → train: $TRAIN_DIR  sequence: $SEQ_DIR  checkpoints: $CHECKPOINT_DIR  compare: $COMPARE_DIR"
+if [[ "$_use_data_root" == "1" && -d "$SEQ_DIR" ]]; then
+  rm -rf "$SEQ_DIR"
+fi
+
+if [[ "$_use_data_root" == "1" ]]; then
+  echo "Done → data-root: $DATA_ROOT_ABS (GT + input)  train: $TRAIN_DIR  checkpoints: $CHECKPOINT_DIR  compare: $COMPARE_DIR"
+else
+  echo "Done → train: $TRAIN_DIR  sequence: $SEQ_DIR  checkpoints: $CHECKPOINT_DIR  compare: $COMPARE_DIR"
+fi
